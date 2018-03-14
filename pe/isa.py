@@ -68,8 +68,6 @@ def _PE(a, b, c, d):
     def inv(opcode=0x15):
         return ~a
 
-
-    # TODO: Nice syntax: def neg(opcode=0x15, b=reg(CONST, 1)):
     def neg(opcode=0x15, b=(CONST, 1)):
         return ~a + b
 
@@ -90,6 +88,17 @@ def _PE(a, b, c, d):
         # res = (a - b) + c
         return (a - b) + d
 
+    def abs(opcode=0x3):
+        return a if a >= 0 else ~a+1
+
+    def sel(opcode=0x8):
+        return b if d else a
+
+
+    # def eq(opcode=0x6):
+    #     res = a + b
+    #     _, eq, _ = cond(a, b, res)
+    #     return res, eq
 
 def eq():
     # res?
@@ -97,7 +106,7 @@ def eq():
 
 def ge(signed):
     # res = a >= b ? a : b (comparison should be signed/unsigned)
-    return PE( 0x4, lambda a, b, c, d: a if a >= b else b, signed=signed ).cond( lambda ge, eq, le: ge ) 
+    return PE( 0x4, lambda a, b, c, d: a if a >= b else b, signed=signed ).cond( lambda ge, eq, le: ge )
 
 max = ge
 
@@ -107,14 +116,5 @@ def le(signed):
 
 min = le
 
-@op(0x3)
-def abs(a, b, c, d):
-    return a if a >= 0 else ~a+1
-
-
-def sel():
-    return PE( 0x8, lambda a, b, c, d: b if d else a )
-
 def const(value):
     return PE( 0x0, lambda a, b, c, d: a ).rega( CONST, value )
-
