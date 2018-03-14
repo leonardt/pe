@@ -41,53 +41,48 @@ def functional_unit(fn):
     for statement in function_def.body:
         if not isinstance(statement, ast.FunctionDef):
             raise SyntaxError("Can only define functions in the body of the @functional_unit")
+        keywords = []
+        for arg, val in zip(statement.args.args, statement.args.defaults):
+            keywords.append(ast.keyword(arg.arg, val))
+        statement.decorator_list.append(
+            ast.Call(func=ast.Name(id='op', ctx=ast.Load()),
+                 args=[],
+                 keywords=keywords))
         statement.args = args
-        string = astor.to_source(ast.Module([statement]))
         exec(astor.to_source(statement), globals())
 
 @functional_unit
 def _PE(a, b, c, d):
-    @op(0x12)
-    def or_():
+    def or_(opcode=0x12):
         return a | b
 
-    @op(0x13)
-    def and_():
+    def and_(opcode=0x13):
         return a & b
 
-    @op(0x14)
-    def xor():
+    def xor(opcode=0x14):
         return a ^ b
 
     # TODO: Why are there two ops at 0x15?
-    @op(0x15)
-    def inv():
+    def inv(opcode=0x15):
         return ~a
 
-    @op(0x15, regb=(CONST, 1))
-    def neg():
+    def neg(opcode=0x15, regb=(CONST, 1)):
         return ~a + b
 
-    @op(0xf)
-    def lshr():
+    def lshr(opcode=0xf):
         return a >> b
 
-    @op(0x10, signed=1)
-    def ashr():
+    def ashr(opcode=0x10, signed=1):
         return a >> b
 
-    @op(0x11)
-    def lshl():
+    def lshl(opcode=0x11):
         return a << b
 
-
-    @op(0x0)
-    def add():
+    def add(opcode=0x0):
         # res_p = cout
         return a + b + d
 
-    @op(0x1)
-    def sub():
+    def sub(opcode=0x1):
         # res = (a - b) + c
         return (a - b) + d
 
