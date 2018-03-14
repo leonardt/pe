@@ -1,5 +1,14 @@
 from .config import config
 from .pe import PE, CONST
+import ast
+import inspect
+import textwrap
+import astor
+
+def get_ast(obj):
+    indented_program_txt = inspect.getsource(obj)
+    program_txt = textwrap.dedent(indented_program_txt)
+    return ast.parse(program_txt)
 
 __all__  = ['or_', 'and_', 'xor', 'inv']
 __all__ += ['lshr', 'lshl', 'ashr']
@@ -9,42 +18,78 @@ __all__ += ['eq', 'ge', 'le']
 __all__ += ['sel']
 __all__ += ['const']
 
-def or_():
-    return PE( 0x12, lambda a, b, c, d: a | b)
 
-def and_():
-    return PE( 0x13, lambda a, b, c, d: a & b )
+# FIXME: signed should probably be True or False not 1 or 0?
+def op(opcode, regb=None, signed=0):
+    def wrapper(fn):
+        # FIXME: Should we have this extra layer of calling?
+        def wrapped():
+            _pe = PE(opcode, fn, signed=signed)
+            if regb is not None:
+                if not isinstance(regb, tuple):
+                    raise ValueError("Expected tuple for the form (CONST, 1)")
+                _pe.regb(*regb)
+            return _pe
+        return wrapped
+    return wrapper
 
-def xor():
-    return PE( 0x14, lambda a, b, c, d: a ^ b )
+def functional_unit(fn):
+    module = get_ast(fn)
+    function_def = module.body[0]
+    args = function_def.args
+    ops = []
+    for statement in function_def.body:
+        if not isinstance(statement, ast.FunctionDef):
+            raise SyntaxError("Can only define functions in the body of the @functional_unit")
+        statement.args = args
+        string = astor.to_source(ast.Module([statement]))
+        exec(astor.to_source(statement), globals())
 
-def inv():
-    return PE( 0x15, lambda a, b, c, d: ~a )
+@functional_unit
+def _PE(a, b, c, d):
+    @op(0x12)
+    def or_():
+        return a | b
 
-def neg():
-    return PE( 0x15, lambda a, b, c, d: ~a+b ).regb(CONST, 1)
+    @op(0x13)
+    def and_():
+        return a & b
+
+    @op(0x14)
+    def xor():
+        return a ^ b
+
+    # TODO: Why are there two ops at 0x15?
+    @op(0x15)
+    def inv():
+        return ~a
+
+    @op(0x15, regb=(CONST, 1))
+    def neg():
+        return ~a + b
+
+    @op(0xf)
+    def lshr():
+        return a >> b
+
+    @op(0x10, signed=1)
+    def ashr():
+        return a >> b
+
+    @op(0x11)
+    def lshl():
+        return a << b
 
 
-def lshr():
-    # b[3:0]
-    return PE( 0xf, lambda a, b, c, d: a >> b )
+    @op(0x0)
+    def add():
+        # res_p = cout
+        return a + b + d
 
-def ashr():
-    # b[3:0]
-    return PE( 0x10, lambda a, b, c, d: a >> b, signed=1 )
-
-def lshl():
-    # b[3:0]
-    return PE( 0x11, lambda a, b, c, d: a << b )
-
-
-def add():
-    # res_p = cout
-    return PE( 0x0, lambda a, b, c, d: a + b + d )
-
-def sub():
-    # res = (a - b) + c
-    return PE( 0x1, lambda a, b, c, d: a - b + d )
+    @op(0x1)
+    def sub():
+        # res = (a - b) + c
+        return (a - b) + d
 
 
 def eq():
@@ -63,9 +108,9 @@ def le(signed):
 
 min = le
 
-def abs():
-    # res = abs(a-b) + c
-    return PE( 0x3, lambda a, b, c, d: a if a >= 0 else ~a+1 )
+@op(0x3)
+def abs(a, b, c, d):
+    return a if a >= 0 else ~a+1
 
 
 def sel():
