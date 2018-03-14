@@ -4,6 +4,7 @@ import ast
 import inspect
 import textwrap
 import astor
+from collections import namedtuple
 
 def get_ast(obj):
     indented_program_txt = inspect.getsource(obj)
@@ -18,17 +19,18 @@ __all__ += ['eq', 'ge', 'le']
 __all__ += ['sel']
 __all__ += ['const']
 
+regb = namedtuple("regb", ["mode", "value"])
 
 # FIXME: signed should probably be True or False not 1 or 0?
-def op(opcode, regb=None, signed=0):
+def op(opcode, b=None, signed=0):
     def wrapper(fn):
         # FIXME: Should we have this extra layer of calling?
         def wrapped():
             _pe = PE(opcode, fn, signed=signed)
-            if regb is not None:
-                if not isinstance(regb, tuple):
+            if b is not None:
+                if not isinstance(b, reg):
                     raise ValueError("Expected tuple for the form (CONST, 1)")
-                _pe.regb(*regb)
+                _pe.regb(*b)
             return _pe
         return wrapped
     return wrapper
@@ -66,7 +68,9 @@ def _PE(a, b, c, d):
     def inv(opcode=0x15):
         return ~a
 
-    def neg(opcode=0x15, regb=(CONST, 1)):
+
+    # TODO: Nice syntax: def neg(opcode=0x15, b=reg(CONST, 1)):
+    def neg(opcode=0x15, b=(CONST, 1)):
         return ~a + b
 
     def lshr(opcode=0xf):
